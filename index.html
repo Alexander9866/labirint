@@ -1,0 +1,303 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ЛАБИРИНТ — 3D бродилка (онлайн)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #07090d; color: #c8d4e0;
+    font-family: "Consolas", "Courier New", monospace;
+    overflow: hidden; user-select: none;
+  }
+  #app { display: flex; height: 100vh; width: 100vw; }
+  #game {
+    flex: 1 1 auto; position: relative; background: #000;
+    min-width: 0; display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  #view {
+    width: 100%; height: 100%; object-fit: contain;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+    display: block; cursor: crosshair;
+  }
+  #vignette {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center,
+      transparent 25%, rgba(0,0,0,.15) 55%, rgba(0,0,0,.82) 100%);
+    mix-blend-mode: multiply;
+  }
+  #damage {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center,
+      transparent 30%, rgba(180,20,10,.75) 100%);
+    opacity: 0; transition: opacity .35s;
+  }
+  #crosshair {
+    position: absolute; left: 50%; top: 50%;
+    width: 18px; height: 18px; transform: translate(-50%,-50%);
+    pointer-events: none; opacity: .55;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ""; position: absolute; background: #7dffb0;
+  }
+  #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+  #crosshair::after  { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+
+  #hud {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 10px 14px; display: flex; gap: 18px; align-items: flex-end;
+    pointer-events: none; font-size: 11px;
+    background: linear-gradient(to top, rgba(0,0,0,.75), transparent);
+  }
+  .hud-block { display: flex; flex-direction: column; gap: 3px; }
+  .hud-label { color: #7d94a8; font-size: 9px; letter-spacing: 2px; }
+  .bar { width: 130px; height: 8px; background: #101820; border: 1px solid #22384a; border-radius: 2px; overflow: hidden; }
+  .bar > div { height: 100%; transition: width .18s; }
+  #hpFill   { background: linear-gradient(90deg,#5f1c18,#d84836); }
+  #batFill  { background: linear-gradient(90deg,#2b5f4a,#7dffb0); }
+  #keysIcons { display: flex; gap: 6px; }
+  .keySlot {
+    width: 18px; height: 18px; border-radius: 3px;
+    border: 1px solid #35485a; background: #0d151c;
+    display: flex; align-items: center; justify-content: center;
+    color: #ffd54a; font-size: 12px; font-weight: 700;
+  }
+  .keySlot.got { background: #3a2a06; border-color: #ffd54a; box-shadow: 0 0 10px rgba(255,213,74,.55); }
+  #hudRight { margin-left: auto; text-align: right; color: #8fa6b8; font-size: 10px; line-height: 1.5; }
+  #stateBadge { color: #a9d6ff; }
+  #stateBadge.chase { color: #ff8a70; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .55; } }
+
+  #side {
+    flex: 0 0 310px;
+    background: linear-gradient(180deg,#0c1117 0%,#080b10 100%);
+    border-left: 2px solid #1d2b3a; padding: 12px;
+    display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
+  }
+  #side h1 {
+    font-size: 17px; letter-spacing: 4px; color: #7dffb0;
+    text-shadow: 0 0 10px rgba(125,255,176,.45);
+    text-align: center; font-weight: 700;
+  }
+  #side h1 small {
+    display: block; font-size: 9px; letter-spacing: 2px;
+    color: #4d6b83; margin-top: 3px; text-shadow: none;
+  }
+  .mapbox {
+    border: 2px solid #1d2b3a; background: #05070a;
+    border-radius: 3px; padding: 6px;
+    box-shadow: inset 0 0 24px rgba(0,0,0,.9);
+  }
+  #map { width: 100%; display: block; image-rendering: pixelated; }
+  .legend { display: flex; flex-direction: column; gap: 5px; font-size: 10.5px; color: #7f93a6; }
+  .legend .row { display: flex; align-items: center; gap: 7px; }
+  .swatch {
+    width: 13px; height: 13px; border-radius: 2px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; line-height: 1;
+  }
+  .controls {
+    font-size: 10.5px; color: #6d8296; line-height: 1.7;
+    border-top: 1px solid #16202b; padding-top: 9px;
+  }
+  .controls b { color: #a9c2d6; }
+  kbd {
+    background: #131c25; border: 1px solid #263a4d; border-bottom-width: 2px;
+    border-radius: 3px; padding: 0 4px; font-size: 10px; color: #cfe4f5;
+    font-family: inherit;
+  }
+  #stats { font-size: 10.5px; color: #4d6b83; display: flex; justify-content: space-between; gap: 4px; flex-wrap: wrap; }
+  #newBtn {
+    margin-top: auto; background: #14202c; color: #7dffb0;
+    border: 1px solid #2c4a3a; border-radius: 3px;
+    padding: 9px; font-family: inherit; font-size: 11px;
+    letter-spacing: 2px; cursor: pointer; transition: .15s;
+  }
+  #newBtn:hover { background: #1b2f3d; box-shadow: 0 0 14px rgba(125,255,176,.22); }
+
+  #overlay {
+    position: absolute; inset: 0; background: rgba(3,6,9,.9);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 10;
+  }
+  #overlay.show { opacity: 1; pointer-events: auto; }
+  .panel {
+    text-align: center; padding: 30px 40px;
+    border: 2px solid #1e3a2c; background: rgba(6,12,16,.95);
+    box-shadow: 0 0 50px rgba(0,0,0,.9), 0 0 30px rgba(125,255,176,.07) inset;
+    max-width: 560px;
+  }
+  .panel h2 {
+    color: #7dffb0; font-size: 24px; letter-spacing: 7px; margin-bottom: 14px;
+    text-shadow: 0 0 20px rgba(125,255,176,.5);
+  }
+  .panel h2.ghost { color: #cfeaff; text-shadow: 0 0 22px rgba(140,210,255,.85); }
+  .panel h2.danger { color: #ff5544; text-shadow: 0 0 22px rgba(255,60,40,.7); }
+  .panel p { color: #8fa6b8; font-size: 12px; line-height: 1.85; margin-bottom: 6px; }
+  .panel .score {
+    font-size: 22px; color: #ffd54a; margin: 12px 0;
+    letter-spacing: 3px;
+  }
+  .diffRow { display: flex; gap: 8px; justify-content: center; margin: 14px 0 6px; }
+  .diffBtn {
+    background: #101a22; color: #8fa6b8; border: 1px solid #24384a;
+    border-radius: 3px; padding: 8px 16px; cursor: pointer;
+    font-family: inherit; font-size: 11px; letter-spacing: 2px;
+    transition: .15s;
+  }
+  .diffBtn.sel { background: #16291f; color: #7dffb0; border-color: #2f6a4a; box-shadow: 0 0 12px rgba(125,255,176,.25); }
+  .panel button.main {
+    margin-top: 18px; background: #14261d; color: #7dffb0;
+    border: 1px solid #2f6a4a; border-radius: 3px;
+    padding: 11px 30px; font-family: inherit; font-size: 13px;
+    letter-spacing: 3px; cursor: pointer; transition: .15s;
+  }
+  .panel button.main:hover:not(:disabled) { background: #1d3a2b; box-shadow: 0 0 22px rgba(125,255,176,.35); }
+  .panel button.main:disabled { opacity: .55; cursor: wait; }
+  .setRow { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 11px; color: #8fa6b8; justify-content: space-between; }
+  .setRow input[type=range] { flex: 1; accent-color: #7dffb0; }
+  .setRow input[type=text] {
+    flex: 1; background: #0d151c; border: 1px solid #35485a;
+    color: #cfe4f5; padding: 5px 8px; border-radius: 3px;
+    font-family: inherit; font-size: 11px; outline: none;
+  }
+  .setRow input[type=text]:focus { border-color: #7dffb0; box-shadow: 0 0 8px rgba(125,255,176,.25); }
+  .setRow .val { color: #cfe4f5; min-width: 40px; text-align: right; }
+
+  /* Панель игроков и чат (client.js вставляет сюда контент) */
+  #playersBox {
+    font-size: 10.5px; color: #7f93a6;
+    border-top: 1px solid #16202b; padding-top: 9px;
+  }
+  #playersList { display: flex; flex-direction: column; gap: 3px; }
+  #chatLog {
+    margin-top: 6px; max-height: 80px; overflow-y: auto;
+    font-size: 10.5px; color: #8fa6b8; line-height: 1.4;
+    border-top: 1px dashed #16202b; padding-top: 6px;
+  }
+  #chatLog::-webkit-scrollbar { width: 6px; }
+  #chatLog::-webkit-scrollbar-thumb { background: #22384a; border-radius: 3px; }
+
+  @media (max-width: 820px) {
+    #app { flex-direction: column; }
+    #side { flex: 0 0 44%; border-left: none; border-top: 2px solid #1d2b3a; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="game">
+    <canvas id="view"></canvas>
+    <div id="vignette"></div>
+    <div id="damage"></div>
+    <div id="crosshair"></div>
+
+    <div id="hud">
+      <div class="hud-block">
+        <span class="hud-label">ЗДОРОВЬЕ</span>
+        <div class="bar"><div id="hpFill" style="width:100%"></div></div>
+      </div>
+      <div class="hud-block">
+        <span class="hud-label">ФОНАРИК</span>
+        <div class="bar"><div id="batFill" style="width:100%"></div></div>
+      </div>
+      <div class="hud-block">
+        <span class="hud-label">ПАТРОНЫ</span>
+        <div id="ammoHud" style="font-size:14px;font-weight:700;color:#ffd54a">30/30</div>
+      </div>
+      <div class="hud-block">
+        <span class="hud-label">КЛЮЧИ</span>
+        <div id="keysIcons"></div>
+      </div>
+      <div id="hudRight">
+        <div>ОЧКИ: <span id="scoreHud">0</span></div>
+        <div>ПРИВИДЕНИЕ: <span id="distHud">—</span></div>
+        <div id="stateBadge">—</div>
+      </div>
+    </div>
+
+    <div id="overlay" class="show">
+      <div class="panel">
+        <h2 id="ovTitle">ЛАБИРИНТ · ОНЛАЙН</h2>
+        <div id="ovScore" class="score" style="display:none"></div>
+        <p id="ovText">
+          Найдите <b>5 ключей</b> и откройте дверь зала в центре лабиринта.<br>
+          Остерегайтесь Привидения и скелетов: скелету нужно <b>2 попадания</b><br>
+          из дробовика (клик или пробел, перезарядка 0.5 с).<br>
+          Патроны — 30 в запасе, ищите призы-патроны (+30).<br>
+          Там, где вы уже прошли, потолок светлее — по нему видно свои следы.<br>
+          Скелеты, сбившиеся в кучу, помечаются цифрой — сколько их вместе.<br>
+          Очки: +5 за новую клетку, +250 за ключ, +50 за скелета, +5000 за дверь.
+        </p>
+        <div class="diffRow" id="diffRow">
+          <button class="diffBtn" data-d="easy">ЛЁГКАЯ</button>
+          <button class="diffBtn sel" data-d="normal">ОБЫЧНАЯ</button>
+          <button class="diffBtn" data-d="hard">СЛОЖНАЯ</button>
+        </div>
+        <div style="margin-top:14px">
+          <div class="setRow"><span>Чувствительность</span>
+            <input type="range" id="sensS" min="0.5" max="4" step="0.1" value="2.2">
+            <span class="val" id="sensV">2.2</span>
+          </div>
+          <div class="setRow"><span>Обзор (FOV)</span>
+            <input type="range" id="fovS" min="50" max="100" step="1" value="66">
+            <span class="val" id="fovV">66°</span>
+          </div>
+          <div class="setRow"><span>Звук</span>
+            <input type="range" id="volS" min="0" max="100" step="1" value="70">
+            <span class="val" id="volV">70</span>
+          </div>
+          <div class="setRow"><span>Режим мыши</span>
+            <button type="button" class="diffBtn" id="mouseModeBtn" style="flex:1">ЗАХВАТ КУРСОРА</button>
+          </div>
+        </div>
+        <p style="color:#5b7386;margin-top:12px;font-size:11px">
+          <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> движение &nbsp;
+          <kbd>ПКМ</kbd> бег &nbsp; <kbd>ЛКМ</kbd> выстрел &nbsp; <kbd>F</kbd> фонарик &nbsp;
+          <kbd>Enter</kbd> чат &nbsp; <kbd>Мышь</kbd> обзор
+        </p>
+        <button class="main" id="startBtn">ИГРАТЬ</button>
+      </div>
+    </div>
+  </div>
+
+  <aside id="side">
+    <h1>ЛАБИРИНТ<small>3D БРОДИЛКА · ОНЛАЙН</small></h1>
+    <div class="mapbox"><canvas id="map"></canvas></div>
+    <div class="legend">
+      <div class="row"><span class="swatch" style="background:#1a2230"></span> исследовано</div>
+      <div class="row"><span class="swatch" style="background:#2ee06a"></span> дверь зала (центр)</div>
+      <div class="row"><span class="swatch" style="background:#ffd54a"></span> ключ</div>
+      <div class="row"><span class="swatch" style="color:#ff5a6a;font-weight:700">♥</span> аптечка</div>
+      <div class="row"><span class="swatch" style="background:#7dffb0;width:7px;height:11px;border-radius:1px"></span> батарейка</div>
+      <div class="row"><span class="swatch" style="background:#e05a2b"></span> патроны (+30)</div>
+      <div class="row"><span class="swatch" style="background:#ffcc33"></span> вы</div>
+      <div class="row"><span class="swatch" style="background:#aaddff"></span> другие игроки</div>
+      <div class="row"><span class="swatch" style="background:#cfeaff"></span> привидение (если видно)</div>
+      <div class="row"><span class="swatch" style="background:#2a3648"></span> туман войны</div>
+    </div>
+    <div class="controls">
+      <b>Управление</b><br>
+      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — ходьба<br>
+      <kbd>ПКМ</kbd> — бег (громче!)<br>
+      <kbd>ЛКМ</kbd> — выстрел<br>
+      <kbd>F</kbd> — фонарик вкл/выкл<br>
+      <kbd>←</kbd> <kbd>→</kbd> — поворот<br>
+      <kbd>Мышь</kbd> — обзор (клик по экрану)<br>
+      <kbd>Enter</kbd> — чат / сообщение<br>
+      <kbd>Esc</kbd> — пауза
+    </div>
+    <div id="stats">
+      <span id="posInfo">—</span>
+      <span id="fpsInfo">—</span>
+    </div>
+    <button id="newBtn">НОВЫЙ ЗАБЕГ</button>
+  </aside>
+</div>
+
+<script src="/client.js"></script>
+</body>
+</html>
