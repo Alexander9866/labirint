@@ -401,20 +401,23 @@ const texSkeleton = (() => {
   const c = document.createElement('canvas'); c.width = c.height = size;
   const g = c.getContext('2d');
   g.scale(SPR_S, SPR_S);
+  /* Бежевый (#e8d9b0), а не бело-голубой: привидение (texGhost) — холодный
+     сине-белый, скелет должен читаться как «тёплая кость», чтобы их нельзя
+     было спутать в темноте и на миникарте. */
   const glow = g.createRadialGradient(32, 32, 2, 32, 32, 24);
-  glow.addColorStop(0, 'rgba(220,230,240,0.35)');
-  glow.addColorStop(1, 'rgba(120,140,160,0)');
+  glow.addColorStop(0, 'rgba(232,217,176,0.35)');
+  glow.addColorStop(1, 'rgba(150,128,80,0)');
   g.fillStyle = glow; g.fillRect(0, 0, size, size);
   g.save();
-  g.shadowColor = 'rgba(200,220,240,0.8)'; g.shadowBlur = 6 * SPR_S;
-  g.fillStyle = '#e6ecf2';
+  g.shadowColor = 'rgba(226,206,158,0.8)'; g.shadowBlur = 6 * SPR_S;
+  g.fillStyle = '#e8d9b0';
   // череп
   g.beginPath(); g.arc(32, 16, 8, 0, Math.PI * 2); g.fill();
-  g.fillStyle = 'rgba(10,15,20,0.95)';
+  g.fillStyle = 'rgba(40,30,15,0.95)';
   g.beginPath(); g.arc(29, 15, 2, 0, Math.PI * 2); g.fill();
   g.beginPath(); g.arc(35, 15, 2, 0, Math.PI * 2); g.fill();
   // позвоночник, рёбра, таз, ноги
-  g.fillStyle = '#e6ecf2';
+  g.fillStyle = '#e8d9b0';
   g.fillRect(30, 24, 4, 18);
   for (let i = 0; i < 3; i++) g.fillRect(22, 27 + i * 5, 20, 2.5);
   g.fillRect(26, 42, 12, 4);
@@ -1988,7 +1991,10 @@ function renderOneSprite(sp, itemAmbient, nameLabels) {
   if (light < 0.15) light = 0.15;
   if (sp.isGhost) light = Math.min(1.05, light * 1.35);
   else if (sp.isPlayer) light = Math.min(1, light * 1.1);
-  else light *= itemAmbient;
+  // Привидение светится само по себе; скелеты и предметы подчиняются ambient
+  // (фонарь/батареи) — иначе бежевый скелет в темноте выглядел бы ярче синего
+  // призрака и их снова легко спутать.
+  else if (!sp.isGhost) light *= itemAmbient;
 
   // Тинт для спрайта игрока — умножаем каналы на цвет
   let tr = 1, tg = 1, tb = 1;
