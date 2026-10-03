@@ -89,7 +89,7 @@ PORT=8080 npm start
 
 ```
 doom2_ds/
-├── server.js               # Игровой сервер: Express (статика + /health) и WebSocket
+├── server.js               # Игровой сервер: Express (статика + /health) и WebSocket (~810 строк)
 ├── public/
 │   ├── index.html          # HUD, мини-карта, оверлеи, чат, настройки
 │   └── client.js           # Движок рейкастинга, ИИ призрака, звук, сеть (~2700 строк)

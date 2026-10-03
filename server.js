@@ -25,9 +25,9 @@ const MAPW = CELLS_X * 2 + 1;      // 49×49
 const MAPH = CELLS_Y * 2 + 1;
 
 const KEY_COUNT     = 5;           // все 5 нужны, чтобы открыть дверь
-const BATTERY_COUNT = 6;           // было 4, +40% ≈ 6; респавн 60 с (на клиенте)
-const MEDKIT_COUNT  = 4;           // без респавна
-const AMMO_COUNT    = 8;           // призы-патроны, респавн 60 с (на клиенте)
+const BATTERY_COUNT = 6;           // +45 % заряда фонарика; респавн 30 с (на клиенте)
+const MEDKIT_COUNT  = 4;           // аптечки; респавн 30 с (на клиенте)
+const AMMO_COUNT    = 8;           // призы-патроны (+30); респавн 30 с (на клиенте)
 const SKELETON_COUNT = 40;         // одновременно в лабиринте
 const SKELETON_HITS_TO_KILL = 2;   // выстрелов дробовика на одного скелета
 const SKELETON_VISION = 9;         // дальность прямой видимости для погони
@@ -648,7 +648,7 @@ wss.on('connection', (ws, req) => {
       }
       case 'skeletonHit': {
         // Дробовик: скелет должен быть в прямой видимости рядом с игроком,
-        // на смерть нужно 5 попаданий. Сервер считает попадания.
+        // на смерть нужно SKELETON_HITS_TO_KILL (2) попадания. Сервер считает попадания.
         const now = Date.now();
         if (now - p.lastScoreMsgAt < 100) break;
         const s = skeletons.find(k => k.id === msg.id);
